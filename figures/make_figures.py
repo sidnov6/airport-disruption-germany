@@ -230,13 +230,16 @@ def panel_map(df):
     airports = airports.join(stats, on="icao")
 
     fig, ax = plt.subplots(figsize=(3.6, 4.4))
-    ax.set_facecolor("#eef3f8")  # sea
+    ax.set_facecolor("#e4edf6")  # sea
+    style = {  # layer: facecolor, edgecolor, linewidth, zorder
+        "neighbour": ("#f7f6f3", "#d9d8d2", 0.5, 1),
+        "state": ("#e9e1d3", "#fbf8f3", 0.6, 2),  # Germany tinted, light lines between states
+        "germany": ("none", "#5f5e5a", 0.9, 3),   # national border on top
+    }
     for f in geo["features"]:
-        state = f["properties"]["layer"] == "state"
+        face, edge, lw, z = style[f["properties"]["layer"]]
         for poly in f["geometry"]["coordinates"]:
-            ax.add_patch(Polygon(poly[0], closed=True, facecolor="#ffffff" if state else "#ecebe6",
-                                 edgecolor="#c9c8c2" if state else "#ffffff", linewidth=0.5 if state else 0.8,
-                                 zorder=2 if state else 1))
+            ax.add_patch(Polygon(poly[0], closed=True, facecolor=face, edgecolor=edge, linewidth=lw, zorder=z))
     ax.set_xlim(5.5, 15.4)
     ax.set_ylim(47.15, 55.15)
     ax.set_aspect(1 / np.cos(np.radians(51.2)))
@@ -257,14 +260,19 @@ def panel_map(df):
                     textcoords="offset points", ha=ha, va="center", fontsize=6.6, color=INK,
                     linespacing=1.05, path_effects=halo, zorder=5)
 
+    # white cards behind the two legends so borders do not run through them
+    for x, y, w, h in [(0.70, 0.80, 0.285, 0.19), (0.025, 0.012, 0.44, 0.115)]:
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.006,rounding_size=0.015",
+                                    transform=ax.transAxes, facecolor="#ffffff", edgecolor="#d9d8d2",
+                                    linewidth=0.4, alpha=0.92, zorder=4))
     # nested size legend: circles share a bottom edge
     fig.canvas.draw()
     pts_per_deg = (ax.transData.transform((0, 1)) - ax.transData.transform((0, 0)))[1] * 72 / fig.dpi
-    x0, base = 14.1, 53.9
+    x0, base = 13.72, 53.9
     for val, lab in [(2.5e6, "2.5 M"), (1.0e6, "1 M"), (0.25e6, "0.25 M")]:
         r = np.sqrt(size(val)) / 2 / pts_per_deg  # scatter s is diameter squared in points
-        ax.scatter(x0, base + r, s=size(val), facecolor="none", edgecolor=INK_2, linewidth=0.7, zorder=4)
-        ax.plot([x0, x0 + 0.5], [base + 2 * r] * 2, color=INK_2, linewidth=0.5, zorder=4)
+        ax.scatter(x0, base + r, s=size(val), facecolor="none", edgecolor=INK_2, linewidth=0.7, zorder=5)
+        ax.plot([x0, x0 + 0.5], [base + 2 * r] * 2, color=INK_2, linewidth=0.5, zorder=5)
         ax.text(x0 + 0.55, base + 2 * r, lab, va="center", fontsize=5.6, color=INK_2, zorder=5)
     ax.text(x0 + 0.2, 54.95, "Arrivals 2014-2025", ha="center", fontsize=5.8, color=INK_2, zorder=5)
     cax = ax.inset_axes([0.06, 0.05, 0.36, 0.022])
