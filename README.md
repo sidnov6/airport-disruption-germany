@@ -35,6 +35,7 @@ A **disrupted day** is an airport-day on which at least 2% of arriving flights r
 |---|---|---|
 | EUROCONTROL, Aviation Intelligence Portal | Daily airport arrival ATFM delay by cause, arrivals, arrivals delayed > 15 min (2014 to 2025) | [ansperformance.eu](https://ansperformance.eu/capacity/atfm_apt), files `apt_dly_<year>.csv.bz2` |
 | Deutscher Wetterdienst (DWD), Climate Data Center | Hourly station observations at the 12 airports: temperature, humidity, wind, gusts, precipitation, visibility, present-weather codes | [opendata.dwd.de](https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/) (CC BY 4.0) |
+| Natural Earth | Country and state boundaries for the map figure only | [naturalearthdata.com](https://www.naturalearthdata.com) (public domain) |
 
 [`docs/DATA.md`](docs/DATA.md) describes every processing step: file selection, encoding fixes, cleaning rules, the hourly-to-daily aggregation, the weather-code groups, target and feature definitions, missing values and known caveats. All 84 downloaded files are listed with URL and SHA-256 hash in [`data/source_manifest.json`](data/source_manifest.json).
 
@@ -49,6 +50,7 @@ pipeline/             download raw data and build the dataset
   build_dataset.py    cleaning, aggregation, features, checks
 data/
   source_manifest.json
+  geo/                Germany and neighbouring boundaries for the map (Natural Earth, public domain)
   processed/          airport_day.csv/.parquet, feature_contract.json, data_quality.*
 notebooks/
   01_bi_overview.ipynb              traffic, delay and disruption KPIs
@@ -58,7 +60,7 @@ notebooks/
   05_ridge_regression.ipynb         delay per arrival, linear model
   06_lightgbm_regression.ipynb      delay per arrival, gradient boosting + comparison
 outputs/              saved models, test predictions and metrics per model notebook
-figures/              micropublication figure panels and the script that makes them
+figures/              micropublication panels A to E (+ one extra) and make_figures.py
 docs/DATA.md          data sources and processing
 paper/                micropublication (LaTeX)
 ```

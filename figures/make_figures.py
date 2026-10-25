@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "figures"
 DATA = ROOT / "data" / "processed" / "airport_day.parquet"
 
-SURFACE = "#fcfcfb"
+SURFACE = "#ffffff"
 INK = "#0b0b0b"
 INK_2 = "#52514e"
 GRID = "#e6e5e0"
@@ -59,7 +59,7 @@ def load_predictions():
 
 def panel_pr_curves(lr, gb):
     y = lr["actual"]
-    fig, ax = plt.subplots(figsize=(5.6, 4.4))
+    fig, ax = plt.subplots(figsize=(4.4, 3.5))
     for name, score, color in [("Logistic regression", lr["probability"], LOGISTIC),
                                ("LightGBM", gb["probability"], LIGHTGBM),
                                ("Previous 28-day rate", lr["benchmark_28d"], HISTORY)]:
@@ -71,8 +71,8 @@ def panel_pr_curves(lr, gb):
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1.02)
     ax.grid(color=GRID, linewidth=0.8)
-    ax.legend(frameon=False, loc="upper right", fontsize=9)
-    save(fig, "panel1_precision_recall_2024_2025.png")
+    ax.legend(frameon=False, loc="upper right", fontsize=8)
+    save(fig, "panelB_precision_recall_2024_2025.png")
 
 
 def panel_airport_ap(lr, gb):
@@ -99,7 +99,7 @@ def panel_airport_ap(lr, gb):
     ax.grid(axis="y", color=GRID, linewidth=0.8)
     ax.set_axisbelow(True)
     ax.legend(frameon=False, ncol=3, loc="upper right", fontsize=9)
-    save(fig, "panel2_average_precision_by_airport.png")
+    save(fig, "extra_average_precision_by_airport.png")
 
 
 def panel_weather_risk(df):
@@ -138,7 +138,7 @@ def panel_weather_risk(df):
     cb.set_ticks(np.log2(ticks), labels=[f"{t:g}×" for t in ticks])
     cb.set_label("Disruption risk ratio (with / without condition)")
     cb.outline.set_visible(False)
-    save(fig, "panel3_weather_risk_ratio_by_airport.png")
+    save(fig, "panelC_weather_risk_ratio_by_airport.png")
 
 
 def panel_traffic_weather(df):
@@ -174,7 +174,7 @@ def panel_traffic_weather(df):
     cb = fig.colorbar(im, ax=ax, fraction=0.045, pad=0.03)
     cb.set_label("Disrupted airport-days (%)")
     cb.outline.set_visible(False)
-    save(fig, "panel4_disruption_by_traffic_and_weather.png")
+    save(fig, "panelD_disruption_by_traffic_and_weather.png")
 
 
 def panel_pipeline():
@@ -205,7 +205,75 @@ def panel_pipeline():
     arrow(49.8, 10, 53.2, 16)
     arrow(74.8, 24, 78.2, 30)
     arrow(74.8, 16, 78.2, 10)
-    save(fig, "panel5_data_pipeline.png")
+    save(fig, "panelE_data_pipeline.png")
+
+
+AIRPORT_LABELS = {  # display name, label offset in points (dx, dy)
+    "EDDF": ("Frankfurt", (17, -4)), "EDDM": ("Munich", (15, -11)), "EDDL": ("Düsseldorf", (-8, 4)),
+    "EDDH": ("Hamburg", (9, 3)), "EDDK": ("Cologne-Bonn", (-8, -9)), "EDDS": ("Stuttgart", (-8, -7)),
+    "EDDP": ("Leipzig-Halle", (8, 3)), "EDDV": ("Hannover", (7, -7)), "EDDN": ("Nuremberg", (7, 3)),
+    "EDDW": ("Bremen", (-7, 4)), "EDDC": ("Dresden", (7, -6)), "EDDG": ("Münster-Osnabrück", (-7, 6)),
+}
+
+
+def panel_map(df):
+    import json
+    import matplotlib.patheffects as pe
+    from matplotlib.patches import Polygon
+    import yaml
+
+    geo = json.loads((ROOT / "data" / "geo" / "germany_states_neighbours.geojson").read_text())
+    airports = pd.DataFrame(yaml.safe_load((ROOT / "pipeline" / "config.yaml").read_text())["airports"])
+    stats = df.groupby("airport_icao").agg(arrivals=("arrivals", "sum"), rate=("disrupted_day", "mean"))
+    airports = airports.join(stats, on="icao")
+
+    fig, ax = plt.subplots(figsize=(3.6, 4.4))
+    ax.set_facecolor("#eef3f8")  # sea
+    for f in geo["features"]:
+        state = f["properties"]["layer"] == "state"
+        for poly in f["geometry"]["coordinates"]:
+            ax.add_patch(Polygon(poly[0], closed=True, facecolor="#ffffff" if state else "#ecebe6",
+                                 edgecolor="#c9c8c2" if state else "#ffffff", linewidth=0.5 if state else 0.8,
+                                 zorder=2 if state else 1))
+    ax.set_xlim(5.5, 15.4)
+    ax.set_ylim(47.15, 55.15)
+    ax.set_aspect(1 / np.cos(np.radians(51.2)))
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for s in ax.spines.values():
+        s.set_visible(False)
+
+    ramp = LinearSegmentedColormap.from_list("disruption", ["#fbe3d6", "#f4a07a", "#eb6834", "#b8461a", "#7a2a0b"])
+    size = lambda a: 640 * a / 2.6e6  # noqa: E731  marker area proportional to arrivals
+    sc = ax.scatter(airports["lon"], airports["lat"], s=size(airports["arrivals"]), c=airports["rate"] * 100,
+                    cmap=ramp, vmin=0, vmax=20, edgecolors="#ffffff", linewidths=0.8, zorder=4)
+    halo = [pe.withStroke(linewidth=2.2, foreground="#ffffff")]
+    for _, a in airports.iterrows():
+        name, (dx, dy) = AIRPORT_LABELS[a["icao"]]
+        ha = "left" if dx >= 0 else "right"
+        ax.annotate(f"{name}\n{a['rate'] * 100:.1f}%", (a["lon"], a["lat"]), xytext=(dx, dy),
+                    textcoords="offset points", ha=ha, va="center", fontsize=6.6, color=INK,
+                    linespacing=1.05, path_effects=halo, zorder=5)
+
+    # nested size legend: circles share a bottom edge
+    fig.canvas.draw()
+    pts_per_deg = (ax.transData.transform((0, 1)) - ax.transData.transform((0, 0)))[1] * 72 / fig.dpi
+    x0, base = 14.1, 53.9
+    for val, lab in [(2.5e6, "2.5 M"), (1.0e6, "1 M"), (0.25e6, "0.25 M")]:
+        r = np.sqrt(size(val)) / 2 / pts_per_deg  # scatter s is diameter squared in points
+        ax.scatter(x0, base + r, s=size(val), facecolor="none", edgecolor=INK_2, linewidth=0.7, zorder=4)
+        ax.plot([x0, x0 + 0.5], [base + 2 * r] * 2, color=INK_2, linewidth=0.5, zorder=4)
+        ax.text(x0 + 0.55, base + 2 * r, lab, va="center", fontsize=5.6, color=INK_2, zorder=5)
+    ax.text(x0 + 0.2, 54.95, "Arrivals 2014-2025", ha="center", fontsize=5.8, color=INK_2, zorder=5)
+    cax = ax.inset_axes([0.06, 0.05, 0.36, 0.022])
+    cb = fig.colorbar(sc, cax=cax, orientation="horizontal")
+    cb.set_ticks([0, 5, 10, 15, 20], labels=["0", "5", "10", "15", "20%"])
+    cb.outline.set_visible(False)
+    cb.ax.tick_params(labelsize=5.8, length=2, colors=INK_2)
+    cax.set_title("Disrupted airport-days, 2014-2025", fontsize=5.8, color=INK_2, loc="left", pad=2)
+    ax.text(0.99, 0.005, "Boundaries: Natural Earth", transform=ax.transAxes, ha="right", va="bottom",
+            fontsize=4.6, color="#8a8984", zorder=5)
+    save(fig, "panelA_airport_map.png")
 
 
 def main():
@@ -214,6 +282,7 @@ def main():
     df["disrupted_day"] = df["disrupted_day"].astype("float64")
     for c in ["arrivals", *WEATHER.values()]:
         df[c] = df[c].astype("float64")
+    panel_map(df)
     panel_pr_curves(lr, gb)
     panel_airport_ap(lr, gb)
     panel_weather_risk(df)
