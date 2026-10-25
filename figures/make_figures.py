@@ -119,24 +119,25 @@ def panel_weather_risk(df):
     log_ratio = np.log2(ratios.astype(float))
     cmap = LinearSegmentedColormap.from_list("div", [LOGISTIC, NEUTRAL, RED]).with_extremes(bad=MASKED)
     norm = TwoSlopeNorm(vmin=-1.5, vcenter=0, vmax=2.5)
-    fig, ax = plt.subplots(figsize=(6.4, 5.2))
+    fig, ax = plt.subplots(figsize=(3.5, 3.2))
     im = ax.imshow(np.ma.masked_invalid(log_ratio.values), cmap=cmap, norm=norm, aspect="auto")
     for i in range(ratios.shape[0]):
         for j in range(ratios.shape[1]):
             v = ratios.iloc[i, j]
             if pd.notna(v):
-                ax.text(j, i, f"{v:.1f}×", ha="center", va="center", fontsize=8.5, color=INK)
+                ax.text(j, i, f"{v:.1f}×", ha="center", va="center", fontsize=6.2, color=INK)
             else:
-                ax.text(j, i, f"n={int(counts.iloc[i, j])}", ha="center", va="center", fontsize=7, color=INK_2)
-    ax.set_xticks(range(ratios.shape[1]), ratios.columns, fontsize=9)
-    ax.set_yticks(range(ratios.shape[0]), ratios.index, fontsize=9)
+                ax.text(j, i, f"n={int(counts.iloc[i, j])}", ha="center", va="center", fontsize=5.2, color=INK_2)
+    ax.set_xticks(range(ratios.shape[1]), ["Thunder-\nstorm", "Low\nvisibility", "Strong\ngust", "Snow", "Freezing"], fontsize=6.2)
+    ax.set_yticks(range(ratios.shape[0]), ratios.index, fontsize=6.2)
     ax.tick_params(length=0)
     for s in ax.spines.values():
         s.set_visible(False)
     cb = fig.colorbar(im, ax=ax, fraction=0.045, pad=0.03)
     ticks = [0.5, 1, 2, 4]
     cb.set_ticks(np.log2(ticks), labels=[f"{t:g}×" for t in ticks])
-    cb.set_label("Disruption risk ratio (with / without condition)")
+    cb.set_label("Risk ratio (with / without condition)", fontsize=6.2)
+    cb.ax.tick_params(labelsize=6)
     cb.outline.set_visible(False)
     save(fig, "panelC_weather_risk_ratio_by_airport.png")
 
@@ -154,31 +155,32 @@ def panel_traffic_weather(df):
     n = d.groupby(["hazards", "traffic"], observed=True).size().unstack()
     shown = rate.where(n >= 50)
     cmap = LinearSegmentedColormap.from_list("seq", BLUE_RAMP).with_extremes(bad=MASKED)
-    fig, ax = plt.subplots(figsize=(6.0, 3.8))
+    fig, ax = plt.subplots(figsize=(3.5, 2.6))
     im = ax.imshow(np.ma.masked_invalid(shown.values.astype(float)), cmap=cmap, vmin=0, vmax=30, aspect="auto")
     for i in range(shown.shape[0]):
         for j in range(shown.shape[1]):
             v = shown.iloc[i, j]
             if pd.notna(v):
-                ax.text(j, i, f"{v:.1f}%\nn={int(n.iloc[i, j]):,}", ha="center", va="center", fontsize=8,
+                ax.text(j, i, f"{v:.1f}%\nn={int(n.iloc[i, j]):,}", ha="center", va="center", fontsize=5.8,
                         color="white" if v > 18 else INK)
             else:
-                ax.text(j, i, f"n={int(n.iloc[i, j])}", ha="center", va="center", fontsize=7.5, color=INK_2)
-    ax.set_xticks(range(shown.shape[1]), shown.columns)
-    ax.set_yticks(range(shown.shape[0]), shown.index)
-    ax.set_xlabel("Arrivals relative to the airport's median day in the same year")
-    ax.set_ylabel("Adverse weather conditions that day")
+                ax.text(j, i, f"n={int(n.iloc[i, j])}", ha="center", va="center", fontsize=5.4, color=INK_2)
+    ax.set_xticks(range(shown.shape[1]), shown.columns, fontsize=6.2)
+    ax.set_yticks(range(shown.shape[0]), shown.index, fontsize=6.2)
+    ax.set_xlabel("Arrivals relative to the airport's median day in the same year", fontsize=6.4)
+    ax.set_ylabel("Adverse weather conditions", fontsize=6.4)
     ax.tick_params(length=0)
     for s in ax.spines.values():
         s.set_visible(False)
     cb = fig.colorbar(im, ax=ax, fraction=0.045, pad=0.03)
-    cb.set_label("Disrupted airport-days (%)")
+    cb.set_label("Disrupted airport-days (%)", fontsize=6.2)
+    cb.ax.tick_params(labelsize=6)
     cb.outline.set_visible(False)
     save(fig, "panelD_disruption_by_traffic_and_weather.png")
 
 
 def panel_pipeline():
-    fig, ax = plt.subplots(figsize=(9.6, 3.6))
+    fig, ax = plt.subplots(figsize=(7.6, 2.9))
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 40)
     ax.axis("off")
@@ -186,8 +188,8 @@ def panel_pipeline():
     def box(x, y, w, h, head, body, fill):
         ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.4,rounding_size=1.2",
                                     facecolor=fill, edgecolor="#8a8984", linewidth=0.8))
-        ax.text(x + w / 2, y + h - 2.2, head, ha="center", va="top", fontsize=8.5, fontweight="bold", color=INK)
-        ax.text(x + w / 2, y + h - 6.6, body, ha="center", va="top", fontsize=7.2, color=INK_2, linespacing=1.35)
+        ax.text(x + w / 2, y + h - 2.2, head, ha="center", va="top", fontsize=7.2, fontweight="bold", color=INK)
+        ax.text(x + w / 2, y + h - 6.6, body, ha="center", va="top", fontsize=5.9, color=INK_2, linespacing=1.3)
 
     def arrow(x1, y1, x2, y2):
         ax.annotate("", (x2, y2), (x1, y1), arrowprops=dict(arrowstyle="-|>", color=INK_2, linewidth=1))

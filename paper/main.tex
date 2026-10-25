@@ -71,19 +71,35 @@ Models: logistic regression, LightGBM \quad$\cdot$\quad Validation: time-based s
 When an airport cannot accept all planned arrivals, EUROCONTROL's Network Manager holds flights at their departure airports. The resulting air traffic flow management (ATFM) delay is published per airport and day, with its cause [1, 2]. Weather is the largest recorded cause at German airports: 67\% of all ATFM arrival delay minutes at the 12 airports studied here, 2014--2025. We asked whether public traffic and weather data are enough to anticipate which airport-days will be disrupted, defined as days on which at least 2\% of arrivals receive more than 15 minutes of ATFM delay. Such days are concentrated at the large hubs: 19.4\% of days at Frankfurt against 6.2\% overall (Fig.~1A).
 
 \paragraph{Results}
-We joined daily EUROCONTROL arrival delays [Data 1] with hourly observations from the DWD station at each airport [Data 2] into 52,596 airport-days (\href{\repo/blob/main/figures/panelE_data_pipeline.png}{Fig.~1E}; all processing steps in [Protocol 1]). Models used 37 predictors: calendar, traffic and delay history from earlier days only, and same-day observed weather as a stand-in for a perfect forecast. They were trained on 2014--2021, tuned on 2022, calibrated on 2023 and scored once on 2024--2025 (8,771 airport-days, 533 disrupted).
+We joined daily EUROCONTROL arrival delays [Data~1] with hourly observations from the DWD station at each airport [Data~2] into 52,596 airport-days (Fig.~1E; all processing steps in [Protocol~1]). Models used 37 predictors: calendar, traffic and delay history from earlier days only, and same-day observed weather as a stand-in for a perfect forecast. They were trained on 2014--2021, tuned on 2022, calibrated on 2023 and scored once on 2024--2025 (8,771 airport-days, 533 disrupted).
 
-LightGBM [4] reached an average precision (AP) of 0.39 and a ROC-AUC of 0.90; logistic regression [3] reached 0.38 and 0.89 (Fig.~1B). At an alert threshold of 0.20 chosen on 2023, LightGBM flagged 682 days with a precision of 0.39 and a recall of 0.50. The gain over recent history was largest at Frankfurt (AP 0.63 vs 0.30) and smallest at Stuttgart, where both models caught only 3 of 52 disrupted days [Code 1].
+LightGBM [4] reached an average precision (AP) of 0.39 and a ROC-AUC of 0.90; logistic regression [3] reached 0.38 and 0.89 (Fig.~1B). At an alert threshold of 0.20 chosen on 2023, LightGBM flagged 682 days with a precision of 0.39 and a recall of 0.50. The gain over recent history was largest at Frankfurt (AP 0.63 vs 0.30) and smallest at Stuttgart, where both models caught only 3 of 52 disrupted days [Code~1].
 
-The descriptive analysis points to weather and traffic. Thunderstorm days were 3.9 to 5.5 times as likely to be disrupted as other days at Frankfurt, Munich and Stuttgart (\href{\repo/blob/main/figures/panelC_weather_risk_ratio_by_airport.png}{Fig.~1C}). Disruption rose with traffic and with the number of adverse weather conditions, reaching 25.5\% on days with two conditions and 100--120\% of the airport's median traffic (\href{\repo/blob/main/figures/panelD_disruption_by_traffic_and_weather.png}{Fig.~1D}). Predicting delay minutes per arrival was harder: LightGBM barely beat predicting zero (MAE 0.200 vs 0.207). Because observed weather replaces a forecast, all scores are an upper bound for day-ahead use.
+The descriptive analysis points to weather and traffic. Thunderstorm days were 3.9 to 5.5 times as likely to be disrupted as other days at Frankfurt, Munich and Stuttgart (Fig.~1C). Disruption rose with traffic and with the number of adverse weather conditions, reaching 25.5\% on days with two conditions and 100--120\% of the airport's median traffic (Fig.~1D). Predicting delay minutes per arrival was harder: LightGBM barely beat predicting zero (MAE 0.200 vs 0.207). Because observed weather replaces a forecast, all scores are an upper bound for day-ahead use.
 
-{\footnotesize\linespread{1.15}\selectfont
-\textbf{Further panels:}
-\href{\repo/blob/main/figures/panelC_weather_risk_ratio_by_airport.png}{1C Disruption risk ratio by weather condition and airport, 2014--2025 (grey: fewer than 10 disrupted days, n = disrupted days)};
-\href{\repo/blob/main/figures/panelD_disruption_by_traffic_and_weather.png}{1D Disruption rate by traffic relative to the airport's median in the same year and number of adverse weather conditions (grey: fewer than 50 days)};
-\href{\repo/blob/main/figures/panelE_data_pipeline.png}{1E From raw sources to the airport-day table, BI notebooks and models}.\par
-}
+%% Figure 1C to 1E (full-resolution files linked in the captions)
+\vfill
+\begin{center}
+\begin{minipage}[b]{0.49\linewidth}\centering
+\includegraphics[width=\linewidth]{panelC_weather_risk_ratio_by_airport.png}
+\end{minipage}\hfill
+\begin{minipage}[b]{0.49\linewidth}\centering
+\includegraphics[width=\linewidth]{panelD_disruption_by_traffic_and_weather.png}\\[0.9cm]
+\end{minipage}\\[0.2em]
+\begin{minipage}[t]{0.49\linewidth}
+{\footnotesize\linespread{1.15}\selectfont \textbf{Fig.~1C} Disruption rate on days with a weather condition divided by the rate on days without it, 2014--2025. Grey: fewer than 10 disrupted days (n = disrupted days with the condition).\par}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\linewidth}
+{\footnotesize\linespread{1.15}\selectfont \textbf{Fig.~1D} Share of disrupted airport-days by traffic (relative to the airport's median day in the same year) and number of adverse weather conditions. Grey: fewer than 50 days.\par}
+\end{minipage}\\[1.8em]
+\includegraphics[width=\linewidth]{panelE_data_pipeline.png}\\[0.2em]
+\begin{minipage}{\linewidth}
+{\footnotesize\linespread{1.15}\selectfont \textbf{Fig.~1E} From the two public sources to the airport-day table used by the BI notebooks and the models; every step is documented in [Protocol~1].\par}
+\end{minipage}
+\end{center}
+\vfill
 
+\clearpage
 %% References
 \paragraph{References}
 \begin{enumerate}[label={[\arabic*]}]
