@@ -57,21 +57,52 @@ def load_predictions():
     return lr, gb
 
 
+def interpolated_pr(y, score):
+    """Precision-recall curve with interpolated precision (best precision at this recall or higher)."""
+    p, r, _ = precision_recall_curve(y, score)
+    # recall decreases along the arrays (the last point is the artificial recall 0, precision 1)
+    return r[:-1], np.maximum.accumulate(p[:-1])
+
+
+def operating_point(y, score, threshold):
+    flag = score >= threshold
+    return (flag & (y == 1)).sum() / (y == 1).sum(), (flag & (y == 1)).sum() / flag.sum()
+
+
 def panel_pr_curves(lr, gb):
-    y = lr["actual"]
+    y = lr["actual"].to_numpy()
     fig, ax = plt.subplots(figsize=(4.4, 3.5))
-    for name, score, color in [("Logistic regression", lr["probability"], LOGISTIC),
-                               ("LightGBM", gb["probability"], LIGHTGBM),
-                               ("Previous 28-day rate", lr["benchmark_28d"], HISTORY)]:
-        p, r, _ = precision_recall_curve(y, score)
-        ax.plot(r, p, color=color, linewidth=2, label=f"{name} (AP {average_precision_score(y, score):.2f})")
-    ax.axhline(y.mean(), color="#8a8984", linestyle="--", linewidth=1, label=f"Base rate ({y.mean():.3f})")
-    ax.set_xlabel("Recall (share of disrupted days flagged)")
-    ax.set_ylabel("Precision (share of flags that were disrupted)")
+    rules = [("LightGBM", gb["probability"].to_numpy(), LIGHTGBM, 3),
+             ("Logistic regression", lr["probability"].to_numpy(), LOGISTIC, 2),
+             ("Previous 28-day rate", lr["benchmark_28d"].to_numpy(), HISTORY, 1)]
+    for name, score, color, z in rules:
+        r, p = interpolated_pr(y, score)
+        ax.plot(r, p, color=color, linewidth=1.8, zorder=z, solid_capstyle="round",
+                label=f"{name}   AP {average_precision_score(y, score):.2f}")
+        if name == "LightGBM":
+            ax.fill_between(r, p, y.mean(), color=color, alpha=0.08, linewidth=0, zorder=0)
+    # alert threshold chosen on 2023
+    for name, score, color, _ in rules[:2]:
+        rec, prec = operating_point(y, score, 0.20)
+        ax.scatter(rec, prec, s=34, color=color, edgecolor="#ffffff", linewidth=1.2, zorder=5)
+    rec, prec = operating_point(y, rules[0][1], 0.20)
+    ax.annotate("alert threshold 0.20", (rec, prec), xytext=(12, 22), textcoords="offset points",
+                fontsize=6.6, color=INK_2, arrowprops=dict(arrowstyle="-", color="#b5b4ae", linewidth=0.6))
+    ax.axhline(y.mean(), color="#8a8984", linestyle=(0, (3, 3)), linewidth=0.9, zorder=1)
+    ax.text(0.015, y.mean() + 0.018, f"base rate {y.mean():.3f}", ha="left", va="bottom", fontsize=6.6, color=INK_2)
+    ax.set_xlabel("Recall: share of disrupted days flagged", fontsize=7.6)
+    ax.set_ylabel("Precision: share of flags that were disrupted", fontsize=7.6)
     ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1.02)
-    ax.grid(color=GRID, linewidth=0.8)
-    ax.legend(frameon=False, loc="upper right", fontsize=8)
+    ax.set_ylim(0, 1.0)
+    ax.set_xticks(np.arange(0, 1.01, 0.2), [f"{v:.0%}" for v in np.arange(0, 1.01, 0.2)])
+    ax.set_yticks(np.arange(0, 1.01, 0.2), [f"{v:.0%}" for v in np.arange(0, 1.01, 0.2)])
+    ax.tick_params(labelsize=7, length=0, pad=4)
+    ax.grid(axis="y", color=GRID, linewidth=0.7)
+    ax.spines["left"].set_visible(False)
+    ax.spines["bottom"].set_color("#b5b4ae")
+    leg = ax.legend(frameon=False, loc="upper right", fontsize=7.4, handlelength=1.6, borderaxespad=0.2,
+                    title="2024-2025 test years", title_fontsize=7.0, alignment="left")
+    leg.get_title().set_color(INK_2)
     save(fig, "panelB_precision_recall_2024_2025.png")
 
 
@@ -180,33 +211,64 @@ def panel_traffic_weather(df):
 
 
 def panel_pipeline():
-    fig, ax = plt.subplots(figsize=(7.6, 2.9))
+    fig, ax = plt.subplots(figsize=(7.6, 3.2))
     ax.set_xlim(0, 100)
-    ax.set_ylim(0, 40)
+    ax.set_ylim(0, 45)
     ax.axis("off")
+    strip = 4.6  # height of the coloured title strip
 
-    def box(x, y, w, h, head, body, fill):
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.4,rounding_size=1.2",
-                                    facecolor=fill, edgecolor="#8a8984", linewidth=0.8))
-        ax.text(x + w / 2, y + h - 2.2, head, ha="center", va="top", fontsize=7.2, fontweight="bold", color=INK)
-        ax.text(x + w / 2, y + h - 6.6, body, ha="center", va="top", fontsize=5.9, color=INK_2, linespacing=1.3)
+    def bullets(lines):  # a line starting with two spaces continues the previous bullet
+        return "\n".join(f"     {s.strip()}" if s.startswith("  ") else f"\u2022  {s}" for s in lines)
 
-    def arrow(x1, y1, x2, y2):
-        ax.annotate("", (x2, y2), (x1, y1), arrowprops=dict(arrowstyle="-|>", color=INK_2, linewidth=1))
+    def card(x, y, w, h, title, lines, color, tint):
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0,rounding_size=1.4",
+                                    facecolor=tint, edgecolor="none", zorder=1))
+        ax.add_patch(FancyBboxPatch((x, y + h - strip), w, strip, boxstyle="round,pad=0,rounding_size=1.4",
+                                    facecolor=color, edgecolor="none", zorder=2))
+        ax.add_patch(plt.Rectangle((x, y + h - strip), w, strip / 2, facecolor=color, edgecolor="none", zorder=2))
+        ax.text(x + 1.6, y + h - strip / 2, title, ha="left", va="center", fontsize=6.9, fontweight="bold",
+                color="#ffffff", zorder=3)
+        ax.text(x + 1.6, y + h - strip - 1.8, bullets(lines), ha="left", va="top",
+                fontsize=5.4, color=INK, linespacing=1.5, zorder=3)
 
-    box(1, 22, 22, 16, "EUROCONTROL", "apt_dly_2014..2025.csv.bz2\n12 yearly files, all airports\narrivals, ATFM delay,\n16 delay causes", "#cde2fb")
-    box(1, 2, 22, 16, "DWD open data", "hourly station records\n6 products x 12 stations\ntemp, wind, gust, rain,\nvisibility, weather codes", "#cde2fb")
-    box(28, 22, 21, 16, "Clean traffic", "keep 12 airports\nblank delay = 0\ncauses sum to total\n38 missing days kept", NEUTRAL)
-    box(28, 2, 21, 16, "Clean weather", "-999 = missing, UTC checked\nhourly -> daily (>= 20 h)\nWMO code groups:\nfog, thunder, snow, freezing", NEUTRAL)
-    box(54, 8, 20, 24, "airport_day table", "12 airports x 4,383 days\n= 52,596 rows, 79 columns\n\ntarget: >= 2% of arrivals\ndelayed > 15 min\n\nhistory features use\nearlier days only", "#ffe0d0")
-    box(79, 22, 20, 16, "BI notebooks", "KPIs as ratios of sums\nweather risk ratios\ntraffic x weather", NEUTRAL)
-    box(79, 2, 20, 16, "Models", "train 2014-2021\nselect 2022, calibrate 2023\ntest 2024-2025 (once)\n37 contract predictors", NEUTRAL)
-    for y in (30, 10):
-        arrow(23.8, y, 27.2, y)
-    arrow(49.8, 30, 53.2, 24)
-    arrow(49.8, 10, 53.2, 16)
-    arrow(74.8, 24, 78.2, 30)
-    arrow(74.8, 16, 78.2, 10)
+    def arrow(x1, x2, y):
+        ax.annotate("", (x2, y), (x1, y), arrowprops=dict(arrowstyle="-|>,head_length=0.45,head_width=0.22",
+                                                         color="#8a8984", linewidth=1.0, shrinkA=0, shrinkB=0))
+
+    for x, label in [(0, "1  SOURCES"), (26, "2  PROCESSING"), (53, "3  DATASET"), (79, "4  ANALYSIS")]:
+        ax.text(x, 43.6, label, fontsize=6.4, fontweight="bold", color="#8a8984", va="center")
+
+    blue, blue_t = LOGISTIC, "#eaf2fc"
+    grey, grey_t = "#6f6e69", "#f3f2ee"
+    orange, orange_t = LIGHTGBM, "#fdeee6"
+    green, green_t = HISTORY, "#e6f6f0"
+    card(0, 22, 21.5, 18.5, "EUROCONTROL", ["apt_dly_<year>.csv.bz2", "12 yearly files", "arrivals, ATFM delay", "16 delay causes"], blue, blue_t)
+    card(0, 0.5, 21.5, 18.5, "DWD open data", ["hourly station records", "6 products \u00d7 12 stations", "temperature, wind, gusts,", "  rain, visibility, codes"], blue, blue_t)
+    card(26, 22, 22.5, 18.5, "Clean traffic", ["keep the 12 airports", "blank delay cell = 0", "causes sum to total", "38 missing days kept"], grey, grey_t)
+    card(26, 0.5, 22.5, 18.5, "Clean weather", ["\u2212999 \u2192 missing, UTC check", "hourly \u2192 daily (\u2265 20 h)", "WMO weather codes:", "  fog, thunder, snow, freezing"], grey, grey_t)
+
+    # dataset card with the headline numbers
+    x, y, w, h = 53, 0.5, 21.5, 40
+    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0,rounding_size=1.4",
+                                facecolor=orange_t, edgecolor="none", zorder=1))
+    ax.add_patch(FancyBboxPatch((x, y + h - strip), w, strip, boxstyle="round,pad=0,rounding_size=1.4",
+                                facecolor=orange, edgecolor="none", zorder=2))
+    ax.add_patch(plt.Rectangle((x, y + h - strip), w, strip / 2, facecolor=orange, edgecolor="none", zorder=2))
+    ax.text(x + 1.6, y + h - strip / 2, "airport_day table", ha="left", va="center", fontsize=6.9,
+            fontweight="bold", color="#ffffff", zorder=3)
+    ax.text(x + w / 2, 28.6, "52,596", ha="center", va="center", fontsize=13, fontweight="bold", color=INK, zorder=3)
+    ax.text(x + w / 2, 24.6, "airport-days", ha="center", va="center", fontsize=6.4, color=INK_2, zorder=3)
+    ax.text(x + 1.6, 20.6, bullets(["12 airports × 4,383 days", "79 columns, 37 predictors",
+            "target: ≥ 2% of arrivals", "  delayed > 15 min", "history: earlier days only"]),
+            ha="left", va="top", fontsize=5.4, color=INK, linespacing=1.5, zorder=3)
+
+    card(79, 22, 21, 18.5, "BI notebooks", ["KPIs as ratios of sums", "delay causes by airport", "weather risk ratios", "traffic \u00d7 weather"], green, green_t)
+    card(79, 0.5, 21, 18.5, "Models", ["train 2014\u20132021", "tune 2022, calibrate 2023", "test 2024\u20132025, once", "logistic reg. + LightGBM"], green, green_t)
+
+    for yy in (31.25, 9.75):
+        arrow(21.9, 25.6, yy)
+        arrow(48.9, 52.6, yy)
+        arrow(74.9, 78.6, yy)
     save(fig, "panelE_data_pipeline.png")
 
 
