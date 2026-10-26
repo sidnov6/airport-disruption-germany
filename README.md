@@ -101,4 +101,4 @@ We checked that a rebuild from the raw files gives a dataset identical to the on
 
 ## Team
 
-Author 1, Author 2, Author 3
+Siddharth Jain, Manasvi Japi, Rong Qin
